@@ -1,0 +1,9 @@
+.env
+data
+*.key
+*.pem
+*.crt
+__pycache__/
+*.pyc
+.DS_Store
+connection_kit/aws-iot-device-sdk-python-v2/
