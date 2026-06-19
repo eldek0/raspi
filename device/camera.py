@@ -226,11 +226,45 @@ class CameraModule:
 
 # ── Flask debug server (solo cuando se corre este archivo directamente) ───────
 
+def start_camera_server(camera: 'CameraModule') -> None:
+    """Arranca el servidor Flask en un hilo daemon. Llamar desde main.py."""
+    app = _make_flask_app(camera)
+    t = threading.Thread(
+        target=lambda: app.run(host='0.0.0.0', port=CAMERA_PORT, threaded=True),
+        daemon=True,
+    )
+    t.start()
+    logger.info(f'Servidor de cámara en http://0.0.0.0:{CAMERA_PORT}')
+
+
 def _make_flask_app(camera: CameraModule):
     from flask import Flask, Response, jsonify, request, send_file
     import tempfile
 
     app = Flask(__name__)
+
+    @app.route('/')
+    def index():
+        return (
+            '<!doctype html><html><head><title>Cámara</title>'
+            '<style>body{margin:0;background:#000;display:flex;'
+            'justify-content:center;align-items:center;height:100vh}'
+            'img{max-width:100%;max-height:100vh}</style></head>'
+            f'<body><img src="/stream"></body></html>'
+        )
+
+    @app.route('/stream')
+    def stream():
+        def generate():
+            while True:
+                jpg = camera.latest_frame_jpg()
+                if jpg:
+                    yield (
+                        b'--frame\r\nContent-Type: image/jpeg\r\n\r\n'
+                        + jpg + b'\r\n'
+                    )
+                time.sleep(0.05)
+        return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
     @app.route('/health')
     def health():

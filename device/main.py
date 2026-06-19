@@ -6,7 +6,7 @@ logging.getLogger().setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
 
-from camera import CameraModule
+from camera import CameraModule, start_camera_server
 from config import (
     CAMERA_DEVICE, CAMERA_BUFFER_SECS, DATA_DIR, PENDING_DIR, DEVICE_ID,
     YOLO_MODEL, YOLO_CONF, IOU_THRESHOLD, IMG_SIZE, PROCESS_EVERY_N_FRAMES,
@@ -32,6 +32,7 @@ def main() -> None:
 
     camera = CameraModule(CAMERA_DEVICE, CAMERA_BUFFER_SECS)
     camera.start()
+    start_camera_server(camera)
 
     store    = EventStore(DATA_DIR / 'events.db', PENDING_DIR)
     detector = Detector(camera, store)

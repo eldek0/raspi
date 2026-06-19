@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name
 logger     = logging.getLogger(__name__)
 logger_cam = logging.getLogger('camara')
 
-from camera import CameraModule
+from camera import CameraModule, start_camera_server
 from config import (
     CAMERA_DEVICE, CAMERA_BUFFER_SECS, DATA_DIR, PENDING_DIR,
     DEVICE_ID, YOLO_MODEL, YOLO_CONF,
@@ -122,6 +122,7 @@ def main() -> None:
 
     camera = CameraModule(CAMERA_DEVICE, CAMERA_BUFFER_SECS)
     camera.start()
+    start_camera_server(camera)
 
     store    = EventStore(DATA_DIR / 'events.db', PENDING_DIR)
     detector = AlertOnlyDetector(camera, store)
