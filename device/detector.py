@@ -13,7 +13,7 @@ from camera import CameraModule
 from config import (
     DEVICE_ID, PENDING_DIR,
     YOLO_MODEL, YOLO_CONF, IOU_THRESHOLD, IMG_SIZE,
-    DETECTION_INTERVAL, ALERT_DURATION_SECS, ALERT_REPEAT_INTERVAL,
+    DETECTION_INTERVAL, ALERT_DURATION_SECS, ALERT_REPEAT_INTERVAL, NORMAL_EVENT_INTERVAL,
 )
 from store import EventStore
 
@@ -109,9 +109,7 @@ class Detector:
         return str(cache_path)
 
     def run(self) -> None:
-        # True while a no-helmet episode is/was active — used to detect the
-        # transition back to clear (= someone put on their helmet)
-        _was_no_helmet = False
+        last_normal = 0.0
 
         try:
             while True:
@@ -125,13 +123,12 @@ class Detector:
                     self._last_no_helmet = no_helmet
 
                     if no_helmet:
-                        _was_no_helmet = True
                         self._clear_counter = 0
                         if self._no_helmet_since is None:
                             self._no_helmet_since = now
                             logger_cam.warning('Sin casco detectado — iniciando conteo')
-                        elapsed         = now - self._no_helmet_since
-                        time_since_last = (now - self._last_alert_time) if self._last_alert_time is not None else float('inf')
+                        elapsed          = now - self._no_helmet_since
+                        time_since_last  = (now - self._last_alert_time) if self._last_alert_time is not None else float('inf')
                         if elapsed >= ALERT_DURATION_SECS and time_since_last >= ALERT_REPEAT_INTERVAL:
                             logger_cam.warning(
                                 f'Sin casco por {elapsed:.0f}s — disparando alerta '
@@ -139,20 +136,21 @@ class Detector:
                             )
                             self._trigger_alert(detection)
                             self._last_alert_time = now
+                            last_normal = now  # evita evento normal redundante en la misma iteración
                         elif self._last_alert_time is None:
                             logger_cam.debug(f'Sin casco: {elapsed:.0f}s / {ALERT_DURATION_SECS}s')
                     else:
                         self._clear_counter += 1
                         if self._clear_counter >= 3:
-                            if _was_no_helmet and self._no_helmet_since is not None:
-                                # Episode resolved — someone put on their helmet
-                                logger_cam.info('Casco detectado — emitiendo cumplimiento')
-                                self._enqueue_normal_event(False, None)
-                            elif self._no_helmet_since is not None:
+                            if self._no_helmet_since is not None:
                                 logger_cam.info('Casco detectado — reseteando conteo')
                             self._no_helmet_since = None
                             self._last_alert_time = None
-                            _was_no_helmet = False
+
+                    if now - last_normal >= NORMAL_EVENT_INTERVAL:
+                        logger_temp.info(f'Evento normal: no_helmet={no_helmet}')
+                        self._enqueue_normal_event(no_helmet, detection)
+                        last_normal = now
 
                 time.sleep(DETECTION_INTERVAL)
 
