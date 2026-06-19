@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import threading
 import time
 import logging
@@ -158,15 +159,29 @@ class CameraModule:
 
         dest_dir = Path(dest_dir)
         dest_dir.mkdir(parents=True, exist_ok=True)
-        path = str(dest_dir / f'clip_{int(time.time())}.mp4')
+        ts       = int(time.time())
+        tmp_path = str(dest_dir / f'tmp_{ts}.mp4')
+        path     = str(dest_dir / f'clip_{ts}.mp4')
 
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
+        writer = cv2.VideoWriter(tmp_path, fourcc, fps, (w, h))
         for _, jpg in frames:
             arr = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
             if arr is not None:
                 writer.write(arr)
         writer.release()
+
+        try:
+            subprocess.run(
+                ['ffmpeg', '-y', '-i', tmp_path,
+                 '-c:v', 'libx264', '-preset', 'fast',
+                 '-movflags', '+faststart',
+                 path],
+                check=True, capture_output=True,
+            )
+        finally:
+            os.remove(tmp_path)
+
         size = os.path.getsize(path)
         logger.info(f'Clip guardado: {path} ({len(frames)} frames, {size} bytes)')
         return path
