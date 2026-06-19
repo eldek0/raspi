@@ -92,6 +92,7 @@ class AlertOnlyDetector:
     def _trigger_alert(self, detection: tuple[int, int]) -> None:
         event_id  = str(uuid.uuid4())
         partition = datetime.now(timezone.utc).strftime('%Y/%m/%d/%H')
+        temperature = read_temperature()
         photo_path = self._camera.sacar_foto(PENDING_DIR)
         video_path = self._camera.grabar_clip(PENDING_DIR, seconds=ALERT_DURATION_SECS)
         payload = {
@@ -102,6 +103,7 @@ class AlertOnlyDetector:
             'no_helmet':   None,
             'detection_x': detection[0],
             'detection_y': detection[1],
+            'temperature': temperature,
             'timestamp':   datetime.now(timezone.utc).isoformat(),
         }
         self._store.enqueue(

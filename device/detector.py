@@ -166,6 +166,7 @@ class Detector:
         partition = datetime.now(timezone.utc).strftime('%Y/%m/%d/%H')
 
         logger_cam.warning(f'Alerta enviada: event_id={event_id} xy={detection}')
+        temperature = read_temperature()
         photo_path = self._camera.sacar_foto(PENDING_DIR)
         video_path = self._camera.grabar_clip(PENDING_DIR, seconds=ALERT_DURATION_SECS)
 
