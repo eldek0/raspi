@@ -38,7 +38,7 @@ def main() -> None:
     detector = Detector(camera, store)
 
     threading.Thread(target=queue_worker, args=(store,), daemon=True).start()
-    start_command_listener(camera, store)
+    start_command_listener(camera, store, get_detection=detector.get_last_detection)
     detector.run()
 
 

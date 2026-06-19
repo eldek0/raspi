@@ -142,7 +142,7 @@ def upload_video(filepath: str, filename: str) -> str:
 
 
 
-def start_command_listener(camera, store: EventStore) -> None:
+def start_command_listener(camera, store: EventStore, get_detection=None) -> None:
     """Registra handler de comandos sobre el cliente MQTT compartido."""
     global _msg_handler
 
@@ -161,21 +161,24 @@ def start_command_listener(camera, store: EventStore) -> None:
             return
 
         try:
-            event_id  = str(uuid.uuid4())
-            partition = datetime.now(timezone.utc).strftime('%Y/%m/%d/%H')
-            filepath  = camera.sacar_foto(PENDING_DIR)
-            filename  = f'{partition}/{event_id}.jpg'
+            event_id   = str(uuid.uuid4())
+            partition  = datetime.now(timezone.utc).strftime('%Y/%m/%d/%H')
+            filepath   = camera.sacar_foto(PENDING_DIR)
+            filename   = f'{partition}/{event_id}.jpg'
+            detection  = get_detection() if get_detection else {}
             store.enqueue(
                 'photo',
                 event_id=event_id,
                 data={
-                    'event_id':  event_id,
-                    'type':      'screenshot',
-                    'device_id': DEVICE_ID,
-                    'is_alert':  False,
-                    'no_helmet': None,
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'action':    'screenshot_done',
+                    'event_id':    event_id,
+                    'type':        'screenshot',
+                    'device_id':   DEVICE_ID,
+                    'is_alert':    detection.get('is_alert', False),
+                    'no_helmet':   detection.get('is_alert', False),
+                    'detection_x': detection.get('detection_x'),
+                    'detection_y': detection.get('detection_y'),
+                    'timestamp':   datetime.now(timezone.utc).isoformat(),
+                    'action':      'screenshot_done',
                 },
                 filepath=filepath,
                 filename=filename,

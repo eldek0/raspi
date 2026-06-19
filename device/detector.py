@@ -73,6 +73,15 @@ class Detector:
         self._no_helmet_since: Optional[float] = None
         self._last_alert_time: Optional[float] = None
         self._clear_counter                    = 0
+        self._last_detection: Optional[tuple[int, int]] = None
+        self._last_no_helmet: bool = False
+
+    def get_last_detection(self) -> dict:
+        return {
+            'is_alert':    self._last_no_helmet,
+            'detection_x': self._last_detection[0] if self._last_detection else None,
+            'detection_y': self._last_detection[1] if self._last_detection else None,
+        }
 
     @staticmethod
     def _resolve_model(model_spec: str) -> str:
@@ -110,6 +119,8 @@ class Detector:
                 if frame is not None:
                     detection  = self._infer(frame)
                     no_helmet  = detection is not None
+                    self._last_detection = detection
+                    self._last_no_helmet = no_helmet
 
                     if no_helmet:
                         self._clear_counter = 0
