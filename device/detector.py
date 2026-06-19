@@ -125,6 +125,7 @@ class Detector:
                             )
                             self._trigger_alert(detection)
                             self._last_alert_time = now
+                            last_normal = now  # evita evento normal redundante en la misma iteración
                         elif self._last_alert_time is None:
                             logger_cam.debug(f'Sin casco: {elapsed:.0f}s / {ALERT_DURATION_SECS}s')
                     else:
