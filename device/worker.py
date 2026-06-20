@@ -174,7 +174,7 @@ def start_command_listener(camera, store: EventStore, get_detection=None) -> Non
                     'type':        'screenshot',
                     'device_id':   DEVICE_ID,
                     'is_alert':    detection.get('is_alert', False),
-                    'no_helmet':   detection.get('is_alert', False),
+                    'helmet':      not detection.get('is_alert', False),
                     'detection_x': detection.get('detection_x'),
                     'detection_y': detection.get('detection_y'),
                     'timestamp':   datetime.now(timezone.utc).isoformat(),

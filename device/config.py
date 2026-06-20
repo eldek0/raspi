@@ -47,11 +47,11 @@ CAMERA_HEIGHT      = int(os.getenv('CAMERA_HEIGHT', 720))
 
 # Detector
 YOLO_MODEL             = os.getenv('YOLO_MODEL', 'models/helmet_model_medium.pt')
-YOLO_CONF              = float(os.getenv('YOLO_CONF', 0.20))
+YOLO_CONF              = float(os.getenv('YOLO_CONF', 0.40))
 DETECTION_INTERVAL     = float(os.getenv('DETECTION_INTERVAL', 1.0))
 ALERT_DURATION_SECS    = int(os.getenv('ALERT_DURATION_SECS', 3))
 ALERT_REPEAT_INTERVAL  = float(os.getenv('ALERT_REPEAT_INTERVAL', 15.0))
-NORMAL_EVENT_INTERVAL  = float(os.getenv('NORMAL_EVENT_INTERVAL', 60.0))
+NORMAL_EVENT_INTERVAL  = float(os.getenv('NORMAL_EVENT_INTERVAL', 300.0))
 
 PERSON_MODEL_PATH      = os.getenv('PERSON_MODEL_PATH', 'yolov8n.pt')
 IOU_THRESHOLD          = float(os.getenv('IOU_THRESHOLD', 0.45))

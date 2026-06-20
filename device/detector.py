@@ -70,15 +70,15 @@ class Detector:
         self._model = YOLO(model_path)
         logger.info('Modelo YOLO listo')
 
-        self._no_helmet_since: Optional[float] = None
+        self._violation_since: Optional[float] = None
         self._last_alert_time: Optional[float] = None
         self._clear_counter                    = 0
         self._last_detection: Optional[tuple[int, int]] = None
-        self._last_no_helmet: bool = False
+        self._helmet_on: bool = True
 
     def get_last_detection(self) -> dict:
         return {
-            'is_alert':    self._last_no_helmet,
+            'is_alert':    not self._helmet_on,
             'detection_x': self._last_detection[0] if self._last_detection else None,
             'detection_y': self._last_detection[1] if self._last_detection else None,
         }
@@ -117,18 +117,18 @@ class Detector:
                 frame = self._camera.latest_frame()
 
                 if frame is not None:
-                    detection  = self._infer(frame)
-                    no_helmet  = detection is not None
+                    detection        = self._infer(frame)
+                    helmet           = detection is None  # True = casco puesto / sin infracción
                     self._last_detection = detection
-                    self._last_no_helmet = no_helmet
+                    self._helmet_on      = helmet
 
-                    if no_helmet:
+                    if not helmet:
                         self._clear_counter = 0
-                        if self._no_helmet_since is None:
-                            self._no_helmet_since = now
+                        if self._violation_since is None:
+                            self._violation_since = now
                             logger_cam.warning('Sin casco detectado — iniciando conteo')
-                        elapsed          = now - self._no_helmet_since
-                        time_since_last  = (now - self._last_alert_time) if self._last_alert_time is not None else float('inf')
+                        elapsed         = now - self._violation_since
+                        time_since_last = (now - self._last_alert_time) if self._last_alert_time is not None else float('inf')
                         if elapsed >= ALERT_DURATION_SECS and time_since_last >= ALERT_REPEAT_INTERVAL:
                             logger_cam.warning(
                                 f'Sin casco por {elapsed:.0f}s — disparando alerta '
@@ -136,21 +136,22 @@ class Detector:
                             )
                             self._trigger_alert(detection)
                             self._last_alert_time = now
-                            last_normal = now  # evita evento normal redundante en la misma iteración
+                            last_normal = now
                         elif self._last_alert_time is None:
                             logger_cam.debug(f'Sin casco: {elapsed:.0f}s / {ALERT_DURATION_SECS}s')
                     else:
                         self._clear_counter += 1
                         if self._clear_counter >= 3:
-                            if self._no_helmet_since is not None:
+                            if self._violation_since is not None:
                                 logger_cam.info('Casco detectado — reseteando conteo')
-                            self._no_helmet_since = None
+                            self._violation_since = None
                             self._last_alert_time = None
 
                     if now - last_normal >= NORMAL_EVENT_INTERVAL:
-                        logger_temp.info(f'Evento normal: no_helmet={no_helmet}')
-                        self._enqueue_normal_event(no_helmet, detection)
                         last_normal = now
+                        if helmet:
+                            logger_temp.info('Evento normal: casco puesto')
+                            self._enqueue_normal_event(True, None)
 
                 time.sleep(DETECTION_INTERVAL)
 
@@ -187,7 +188,7 @@ class Detector:
             'type':        'alert',
             'device_id':   DEVICE_ID,
             'is_alert':    True,
-            'no_helmet':   None,
+            'helmet':      False,
             'detection_x': detection[0],
             'detection_y': detection[1],
             'temperature': temperature,
@@ -203,7 +204,7 @@ class Detector:
         )
         logger_cam.warning(f'Alerta encolada: photo={photo_path} video={video_path}')
 
-    def _enqueue_normal_event(self, no_helmet: bool, detection: Optional[tuple[int, int]]) -> None:
+    def _enqueue_normal_event(self, helmet: bool, detection: Optional[tuple[int, int]]) -> None:
         event_id    = str(uuid.uuid4())
         temperature = read_temperature()
         logger_temp.info(f'Temperatura leída: {temperature}°C')
@@ -212,7 +213,7 @@ class Detector:
             'type':          'normal',
             'device_id':     DEVICE_ID,
             'is_alert':      False,
-            'no_helmet':     no_helmet,
+            'helmet':        helmet,
             'detection_x':   detection[0] if detection else None,
             'detection_y':   detection[1] if detection else None,
             'temperature':   temperature,
