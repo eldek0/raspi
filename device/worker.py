@@ -228,6 +228,14 @@ def queue_worker(store: EventStore) -> None:
                 store.add_to_data(row['event_id'], 'event', {'video_key': video_key})
             store.mark_done(row['id'])
             delay = 0
+        except FileNotFoundError as e:
+            # File was deleted externally — retrying will never help, skip it
+            logger.warning(
+                f'Archivo no encontrado, descartando item de cola '
+                f'({row["type"]}) id={row["id"]}: {e}'
+            )
+            store.mark_done(row['id'])
+            delay = 0
         except Exception as e:
             store.increment_attempts(row['id'])
             delay = min(delay * 2 or 5, 300)
