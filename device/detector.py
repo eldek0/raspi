@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import cv2
 import numpy as np
 
 from camera import CameraModule
@@ -15,7 +14,6 @@ from config import (
     DEVICE_ID, PENDING_DIR,
     YOLO_MODEL, YOLO_CONF, IOU_THRESHOLD, IMG_SIZE,
     DETECTION_INTERVAL, ALERT_DURATION_SECS, ALERT_REPEAT_INTERVAL, NORMAL_EVENT_INTERVAL,
-    DISPLAY,
 )
 from store import EventStore
 
@@ -77,8 +75,6 @@ class Detector:
         self._clear_counter                    = 0
         self._last_detection: Optional[tuple[int, int]] = None
         self._helmet_on: bool = True
-        self._last_boxes: list = []
-        self._last_temp: float = -1.0
 
     def get_last_detection(self) -> dict:
         return {
@@ -126,9 +122,6 @@ class Detector:
                     self._last_detection = detection
                     self._helmet_on      = helmet
 
-                    if DISPLAY:
-                        self._camera.set_annotated_frame(self._annotate(frame, helmet, now))
-
                     if not helmet:
                         self._clear_counter = 0
                         if self._violation_since is None:
@@ -169,17 +162,14 @@ class Detector:
         results = self._model(frame, conf=YOLO_CONF, iou=IOU_THRESHOLD, imgsz=IMG_SIZE, verbose=False)
         best_conf = -1.0
         best_xy: Optional[tuple[int, int]] = None
-        boxes = []
         for r in results:
             for box in r.boxes:
                 label = r.names[int(box.cls)]
                 conf  = float(box.conf)
-                x1, y1, x2, y2 = [int(v) for v in box.xyxy[0].tolist()]
-                boxes.append((label, conf, x1, y1, x2, y2))
                 if label == _NO_HELMET_LABEL and conf >= YOLO_CONF and conf > best_conf:
                     best_conf = conf
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
                     best_xy = (int((x1 + x2) / 2), int((y1 + y2) / 2))
-        self._last_boxes = boxes
         if best_xy is not None:
             logger.debug(f'Detección sin casco: conf={best_conf:.2f} xy={best_xy}')
         return best_xy
@@ -190,7 +180,6 @@ class Detector:
 
         logger_cam.warning(f'Alerta enviada: event_id={event_id} xy={detection}')
         temperature = read_temperature()
-        self._last_temp = temperature
         photo_path = self._camera.sacar_foto(PENDING_DIR)
         video_path = self._camera.grabar_clip(PENDING_DIR, seconds=ALERT_DURATION_SECS)
 
@@ -215,49 +204,9 @@ class Detector:
         )
         logger_cam.warning(f'Alerta encolada: photo={photo_path} video={video_path}')
 
-    def _annotate(self, frame: np.ndarray, helmet: bool, now: float) -> bytes:
-        disp = frame.copy()
-        H, W = disp.shape[:2]
-
-        # Bounding boxes
-        for label, conf, x1, y1, x2, y2 in self._last_boxes:
-            no_helmet_box = label == _NO_HELMET_LABEL
-            color = (0, 0, 220) if no_helmet_box else (0, 200, 60)
-            text  = f'{"SIN CASCO" if no_helmet_box else "CASCO"}  {conf:.0%}'
-            cv2.rectangle(disp, (x1, y1), (x2, y2), color, 2)
-            (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            cv2.rectangle(disp, (x1, y1 - th - 8), (x1 + tw + 6, y1), color, -1)
-            cv2.putText(disp, text, (x1 + 3, y1 - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-
-        # Status bar
-        bar_color = (0, 0, 160) if not helmet else (0, 130, 0)
-        cv2.rectangle(disp, (0, 0), (W, 38), bar_color, -1)
-
-        if not helmet and self._violation_since is not None:
-            elapsed      = now - self._violation_since
-            status_label = f'SIN CASCO  {elapsed:.0f}s'
-        elif helmet:
-            status_label = 'CASCO DETECTADO'
-        else:
-            status_label = 'MONITOREANDO'
-
-        cv2.putText(disp, status_label, (8, 26),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.72, (255, 255, 255), 2, cv2.LINE_AA)
-
-        if self._last_temp > 0:
-            temp_str = f'{self._last_temp:.1f} C'
-            (tw, _), _ = cv2.getTextSize(temp_str, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
-            cv2.putText(disp, temp_str, (W - tw - 8, 26),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
-
-        _, jpg = cv2.imencode('.jpg', disp, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        return jpg.tobytes()
-
     def _enqueue_normal_event(self, helmet: bool, detection: Optional[tuple[int, int]]) -> None:
         event_id    = str(uuid.uuid4())
         temperature = read_temperature()
-        self._last_temp = temperature
         logger_temp.info(f'Temperatura leída: {temperature}°C')
         payload  = {
             'event_id':      event_id,

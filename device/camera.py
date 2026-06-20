@@ -112,21 +112,6 @@ class CameraModule:
                 return None
             return self._buffer[-1]['jpg']
 
-    def set_annotated_frame(self, jpg: bytes) -> None:
-        """Almacena el último frame anotado con overlays de detección."""
-        with self._lock:
-            self._annotated_jpg: Optional[bytes] = jpg
-
-    def latest_annotated_frame_jpg(self) -> Optional[bytes]:
-        """Frame anotado si existe, si no el frame crudo."""
-        with self._lock:
-            ann = getattr(self, '_annotated_jpg', None)
-            if ann:
-                return ann
-            if not self._buffer:
-                return None
-            return self._buffer[-1]['jpg']
-
     def _ensure_running(self) -> None:
         if self._thread is None or not self._thread.is_alive():
             logger.warning('Capture thread muerto — reiniciando')
@@ -272,7 +257,7 @@ def _make_flask_app(camera: CameraModule):
     def stream():
         def generate():
             while True:
-                jpg = camera.latest_annotated_frame_jpg()
+                jpg = camera.latest_frame_jpg()
                 if jpg:
                     yield (
                         b'--frame\r\nContent-Type: image/jpeg\r\n\r\n'
